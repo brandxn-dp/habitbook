@@ -8,10 +8,12 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/brandxn-dp/habitbook/issues</Support>
   <Project>https://github.com/brandxn-dp/habitbook</Project>
-  <Overview>Habitbook is an iOS-style habit tracker PWA: a monthly spread with memorable moments, colour-coded habits, weight, a sleep chart and a gratitude journal. Data is stored in each browser, so the container needs no volumes.</Overview>
+  <Overview>Habitbook is an iOS-style habit tracker PWA: a monthly spread with memorable moments, colour-coded habits, weight, a sleep chart and a gratitude journal. Accounts sync your book across devices, and an Apple Health import works through iOS Shortcuts. The first account you create becomes the admin.</Overview>
   <Category>Productivity: Tools:</Category>
   <WebUI>http://[IP]:[PORT:80]/</WebUI>
   <Icon>https://raw.githubusercontent.com/brandxn-dp/habitbook/main/public/icons/icon-512.png</Icon>
   <ExtraParams>--restart unless-stopped</ExtraParams>
   <Config Name="Web UI Port" Target="80" Default="8090" Mode="tcp" Description="Host port to open Habitbook on." Type="Port" Display="always" Required="true" Mask="false">8090</Config>
+  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/habitbook" Mode="rw" Description="Accounts and synced books." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/habitbook</Config>
+  <Config Name="Allow sign-ups" Target="ALLOW_SIGNUPS" Default="false" Mode="" Description="true lets anyone who can reach the server create an account. false means only the admin adds users." Type="Variable" Display="always" Required="false" Mask="false">false</Config>
 </Container>

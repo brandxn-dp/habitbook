@@ -397,54 +397,55 @@ button.row:not(:disabled):active, label.row:active { background: var(--fill-2); 
 
 /* ---------- tracker grid ---------- */
 .tracker-card { background: var(--card); border-radius: var(--radius); overflow: hidden; }
-.tracker-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 8px 0 10px; }
-.tracker { border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; margin-right: 12px; }
+/* Column sizes (--cw, --rh, ...) are computed in app.js so the spread fits the screen. */
+.tracker-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 8px 6px 10px; }
+.tracker { border-collapse: separate; border-spacing: 0; font-size: var(--fs, 11px); font-variant-numeric: tabular-nums; margin: 0 auto; }
 .tracker th, .tracker td {
-  width: 26px;
-  min-width: 26px;
-  height: 26px;
+  width: var(--cw, 26px);
+  min-width: var(--cw, 26px);
+  height: var(--rh, 26px);
   padding: 0;
   text-align: center;
   box-shadow: inset -0.5px -0.5px 0 var(--grid);
 }
-.tracker thead th { height: 132px; vertical-align: bottom; font-weight: 600; box-shadow: inset 0 -1.5px 0 var(--label-3); }
+.tracker thead th { height: 104px; vertical-align: bottom; font-weight: 600; box-shadow: inset 0 -1.5px 0 var(--label-3); }
 .tracker .vlabel {
   display: inline-block;
-  max-height: 124px;
-  padding-bottom: 8px;
+  max-height: 98px;
+  padding-bottom: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  font-size: 10.5px;
+  font-size: calc(var(--fs, 11px) - 0.5px);
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--k, var(--label-2));
 }
 .tracker .sticky { position: sticky; left: 0; z-index: 2; background: var(--card); }
-.tracker .c-day { width: 36px; min-width: 36px; color: var(--label-2); }
-.tracker .c-day button { width: 100%; height: 26px; font-size: 12px; font-variant-numeric: tabular-nums; }
-.tracker .c-weight { width: 42px; min-width: 42px; font-size: 11px; }
-.tracker .gap { width: 8px; min-width: 8px; box-shadow: none; }
+.tracker .c-day { width: var(--dw); min-width: var(--dw); color: var(--label-2); }
+.tracker .c-day button { width: 100%; height: var(--rh); font-size: var(--fs); font-variant-numeric: tabular-nums; }
+.tracker .c-weight { width: var(--ww); min-width: var(--ww); font-size: calc(var(--fs) - 0.5px); }
+.tracker .gap { width: var(--gw); min-width: var(--gw); box-shadow: none; }
 .tracker thead .gap { box-shadow: inset 0 -1.5px 0 var(--label-3); }
-.tracker .cell { width: 26px; height: 26px; display: grid; place-items: center; color: var(--k); }
-.tracker .cell svg { width: 12px; height: 12px; }
+.tracker .cell { width: var(--cw); height: var(--rh); display: grid; place-items: center; color: var(--k); }
+.tracker .cell svg { width: calc(var(--cw) * 0.5); height: calc(var(--cw) * 0.5); }
 .tracker .cell:disabled { cursor: default; }
 .tracker .cell:not(:disabled):active { background: var(--fill); }
 .tracker tr.future td:not(.c-chart) { opacity: 0.35; }
 .tracker tr.is-today td:not(.c-chart) { background: color-mix(in srgb, var(--blue) 9%, transparent); }
 .tracker tr.is-today .sticky { background: color-mix(in srgb, var(--blue) 9%, var(--card)); }
 .tracker tr.is-today .c-day button { color: var(--blue); font-weight: 700; }
-.tracker .c-chart { width: 132px; min-width: 132px; vertical-align: top; box-shadow: none; }
-.tracker .c-score { width: 30px; min-width: 30px; font-size: 11px; color: var(--red); }
-.chart-head { position: relative; height: 132px; }
+.tracker .c-chart { width: var(--chw); min-width: var(--chw); vertical-align: top; box-shadow: none; }
+.tracker .c-score { width: var(--sw); min-width: var(--sw); font-size: calc(var(--fs) - 0.5px); color: var(--red); }
+.chart-head { position: relative; height: 104px; }
 .chart-title {
   position: absolute;
   left: 0;
   right: 0;
-  top: 52px;
+  top: 34px;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -544,6 +545,45 @@ button.row:not(:disabled):active, label.row:active { background: var(--fill-2); 
 .swatch.sel svg { opacity: 1; }
 .swatch:active { transform: scale(0.9); }
 .about { margin: -8px 36px 28px; text-align: center; font-size: 13px; color: var(--label-2); }
+
+/* ---------- account + health ---------- */
+.avatar {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue), var(--indigo));
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.avatar.sm { width: 30px; height: 30px; font-size: 14px; }
+.avatar.ghost { background: var(--fill); color: var(--label-2); }
+.avatar svg { width: 60%; height: 60%; }
+.health-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #fff;
+  color: #ff2d55;
+  box-shadow: inset 0 0 0 0.5px var(--sep);
+}
+.health-icon svg { width: 20px; height: 20px; }
+.err { color: var(--red); }
+.err:empty { display: none; }
+.keybox { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; word-break: break-all; -webkit-user-select: all; user-select: all; }
+.note { padding: 16px 20px; font-size: 15px; line-height: 1.45; }
+.steps { margin: 0; padding: 14px 20px 14px 40px; font-size: 15px; line-height: 1.45; }
+.steps li + li { margin-top: 10px; }
+.steps code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; padding: 1px 5px; border-radius: 5px; background: var(--fill); }
+.entry-moment { margin-bottom: 4px; font-size: 16px; font-weight: 600; }
+.glass-btn:disabled { opacity: 0.5; }
 
 /* ---------- tab bar ---------- */
 .tabbar {

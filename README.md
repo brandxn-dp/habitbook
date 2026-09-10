@@ -4,10 +4,10 @@ An iOS-style Progressive Web App version of the "Sanctuary" monthly habit tracke
 
 | In the notebook | In the app |
 | --- | --- |
-| Monthly spread, days 1–31 | **Month → Spread**, a scrollable tracker grid |
-| Memorable moments (one line a day) | **Today → Memorable moment**, listed in **Month** |
+| Monthly spread, days 1–31 | **Month → Spread**, a tracker grid sized to fit the phone screen |
+| Memorable moments (one line a day) | **Today**, or at the top of each **Journal** entry |
 | Cartoon self with a motto ("Stay present") | A motto bubble for each month |
-| Weight column | **Today → Weight** (kg or lb) |
+| Weight column | **Today → Weight** (kg or lb), or imported from Apple Health |
 | Black / blue / red pens, each with a meaning | **Pen colours**: rename them, recolour them, add your own |
 | Red pen: things that affect sleep | Colours set to *Compare with sleep*, analysed in **Insights** |
 | "Not every habit is a good habit" | A per-habit **Avoid** switch |
@@ -17,16 +17,30 @@ An iOS-style Progressive Web App version of the "Sanctuary" monthly habit tracke
 | "What are my goals?" 1–3 | Monthly goals (Month and Journal) |
 | Daily journal with date, time and 3× "Grateful for" | **Journal** tab |
 
-### Settings
+## Accounts and sync
 
-- **Appearance:** Automatic, Light or Dark
-- **Pen colours:** a name, a meaning and one of 14 iOS colours for each, plus whether it's compared with your sleep
-- **Units and formats:** kg or lb (stored as kg, so switching is lossless), week starting Monday or Sunday, and DD.MM, MM.DD or ISO dates
-- **Sleep goal:** shown as a dashed line on the sleep chart
-- **Daily routine:** toggles for the "Revisit yesterday" prompt, the monthly motto, and auto-ticking Journal
-- **Data:** export or import a JSON backup, or erase everything
+The app works on its own with no account; the book is saved in the browser. Signing in (**Settings → Account & sync**) syncs the book across all of your devices.
 
-All data is stored in the browser's `localStorage` on each device. The server only serves static files and stores nothing, so there are no volumes to back up. Use **Export Backup** instead.
+- **The first account created becomes the admin.** Admins add other people under **Settings → Users**, and each person gets a private book.
+- Self sign-up is off by default. Set `ALLOW_SIGNUPS=true` on the container to let anyone who can reach the server create an account.
+- Edits merge field by field. For example, ticking a habit on your phone and an Apple Health import on the same day both survive. Things you do offline sync the next time the app opens.
+- On the server, data lives in `/data`: `db.json` holds accounts (passwords are hashed with scrypt) and `states/` holds one file per book. Back up that folder.
+
+## Apple Health
+
+iPhone web apps can't read Apple Health directly, but the **Shortcuts** app can. **Settings → Apple Health** shows your personal link and creates an API key. A daily Shortcuts automation then sends your weight and sleep:
+
+```
+POST /api/health-data
+Authorization: Bearer hb_…
+Content-Type: application/json
+
+{ "weight": 83.2, "weightUnit": "kg", "sleepMinutes": 422, "sleepScore": 77 }
+```
+
+- Weight goes on today's page. Sleep and sleep score go on yesterday's page, the night that followed it, just like the notebook. You can override this with `date` or `sleepDate` (`YYYY-MM-DD`).
+- `weight` also accepts values with units, such as `"183.4 lb"`. Sleep can be sent as `sleepMinutes`, `sleepHours`, `sleepSeconds`, or text such as `"7 hr 2 min"`.
+- Apple Health has no Garmin sleep score, so `sleepScore` is optional. You can type it in on Today instead.
 
 ## Run locally with Docker
 
@@ -34,7 +48,7 @@ All data is stored in the browser's `localStorage` on each device. The server on
 docker compose up -d --build
 ```
 
-Then open http://localhost:8090. To use a different port, set `HABITBOOK_PORT`.
+Then open http://localhost:8090. Data is stored in `./data`.
 
 ## Docker image
 
@@ -49,17 +63,19 @@ Every push to `main` builds `ghcr.io/brandxn-dp/habitbook:latest` for amd64 and 
    - **Network Type:** `Bridge`
    - **WebUI:** `http://[IP]:[PORT:80]/`
    - **Icon URL:** `https://raw.githubusercontent.com/brandxn-dp/habitbook/main/public/icons/icon-512.png`
-3. Click **Add another Path, Port, Variable, Label or Device**. Set **Config Type** to `Port`, **Name** to `Web UI Port`, **Container Port** to `80`, **Host Port** to `8090` (or any free port), and **Connection Type** to `TCP`. Click **Add**.
-4. Click **Apply**. Unraid pulls the image and starts it.
-5. Click the Habitbook icon on the Docker tab and choose **WebUI**, or browse to `http://<unraid-ip>:8090`.
+3. Click **Add another Path, Port, Variable, Label or Device** three times, adding:
+   - **Port:** name `Web UI Port`, container port `80`, host port `8090`, TCP
+   - **Path:** name `Data`, container path `/data`, host path `/mnt/user/appdata/habitbook`
+   - **Variable:** name `Allow sign-ups`, key `ALLOW_SIGNUPS`, value `false`
+4. Click **Apply**, open the **WebUI**, go to **Settings → Create Admin Account**, and sign in.
 
-Alternatively, copy [unraid/habitbook.xml](unraid/habitbook.xml) to `/boot/config/plugins/dockerMan/templates-user/my-habitbook.xml` on the flash drive. **Habitbook** then appears in the **Template** dropdown under **Add Container** with everything filled in.
+Alternatively, copy [unraid/habitbook.xml](unraid/habitbook.xml) to `/boot/config/plugins/dockerMan/templates-user/my-habitbook.xml` on the flash drive. **Habitbook** then appears in the **Template** dropdown with everything filled in.
 
-**Updating:** On the Docker tab, click **Check for Updates**, then **Apply Update** on Habitbook.
+**Updating:** On the Docker tab, click **Check for Updates**, then **Apply Update**. If you set Habitbook up before version 1.2, edit the container and add the `/data` path from step 3 first.
 
 ### HTTPS, so it installs on an iPhone
 
-Safari only installs a PWA as a standalone home-screen app, and only enables offline mode, over HTTPS. On Unraid 7 the easiest route is its built-in Tailscale support:
+Safari only installs a PWA as a standalone home-screen app over HTTPS. On Unraid 7 the easiest route is its built-in Tailscale support:
 
 1. Install the **Tailscale** plugin from the **Apps** tab and sign in. Install Tailscale on your iPhone too, signed in to the same account.
 2. On the Docker tab, click Habitbook and choose **Edit**. Turn on **Use Tailscale**, set the hostname to `habitbook`, set **Tailscale Serve** to `Serve`, and set the serve port to `80`. Click **Apply**.

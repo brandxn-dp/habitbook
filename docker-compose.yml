@@ -5,4 +5,10 @@ services:
     container_name: habitbook
     ports:
       - "${HABITBOOK_PORT:-8090}:80"
+    environment:
+      # Leave false so only the admin (the first account created) can add users.
+      ALLOW_SIGNUPS: "false"
+      TZ: "${TZ:-UTC}"
+    volumes:
+      - ./data:/data
     restart: unless-stopped

@@ -1,8 +1,9 @@
-const CACHE = 'habitbook-v2';
+const CACHE = 'habitbook-v3';
 const ASSETS = [
   './',
   'index.html',
   'styles.css',
+  'merge.js',
   'app.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
@@ -25,7 +26,9 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  // Never cache the sync API.
+  if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
 
   // Pages: network first so updates land, cached shell when offline.
   if (req.mode === 'navigate') {

@@ -2,5 +2,8 @@
 *.mp4
 *.mov
 
+# Local server data (accounts and synced books)
+data/
+
 .DS_Store
 Thumbs.db
