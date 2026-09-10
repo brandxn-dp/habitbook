@@ -11,6 +11,8 @@ An iOS-style Progressive Web App version of the "Sanctuary" monthly habit tracke
 | Black / blue / red pens, each with a meaning | **Pen colours**: rename them, recolour them, add your own |
 | Red pen: things that affect sleep | Colours set to *Compare with sleep*, analysed in **Insights** |
 | "Not every habit is a good habit" | A per-habit **Avoid** switch |
+| Habits that only happen on some days | A per-habit **Repeat** setting (days of the week, Weekdays, or Weekends). Off-days are shaded and never count against you |
+| Rearranging columns for next month | **Habits → Edit**: drag ≡ to reorder habits, or drop one into another colour |
 | Sleep graph (hours 4–10) + sleep score | Sleep line chart with your sleep goal, plus a score column |
 | Morning routine: weigh in, revisit yesterday | A "Revisit yesterday" prompt on Today |
 | "Next month" note | **Month → Next month** |

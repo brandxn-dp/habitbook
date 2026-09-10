@@ -390,10 +390,12 @@ button.row:not(:disabled):active, label.row:active { background: var(--fill-2); 
 .moments .row + .row::before { left: 56px; }
 .moments .num { width: 22px; flex: none; text-align: right; font-size: 15px; color: var(--label-2); font-variant-numeric: tabular-nums; }
 .moments .txt { flex: 1; min-width: 0; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.moments .txt.empty { color: var(--label-3); }
+.moments .txt.blank { color: var(--label-3); }
 .moments .wd { flex: none; font-size: 13px; color: var(--label-3); }
 .moments .today .num { color: var(--blue); font-weight: 700; }
-.moments .future { opacity: 0.45; }
+.moments .row.empty-day { min-height: 32px; padding-top: 6px; padding-bottom: 6px; }
+.moments .empty-day .num, .moments .empty-day .txt { font-size: 13px; }
+.moments .more-row { min-height: 42px; font-size: 15px; }
 
 /* ---------- tracker grid ---------- */
 .tracker-card { background: var(--card); border-radius: var(--radius); overflow: hidden; }
@@ -434,6 +436,7 @@ button.row:not(:disabled):active, label.row:active { background: var(--fill-2); 
 .tracker .cell svg { width: calc(var(--cw) * 0.5); height: calc(var(--cw) * 0.5); }
 .tracker .cell:disabled { cursor: default; }
 .tracker .cell:not(:disabled):active { background: var(--fill); }
+.tracker td.off { background: repeating-linear-gradient(135deg, var(--fill) 0 1.5px, transparent 1.5px 5px); }
 .tracker tr.future td:not(.c-chart) { opacity: 0.35; }
 .tracker tr.is-today td:not(.c-chart) { background: color-mix(in srgb, var(--blue) 9%, transparent); }
 .tracker tr.is-today .sticky { background: color-mix(in srgb, var(--blue) 9%, var(--card)); }
@@ -530,6 +533,23 @@ button.row:not(:disabled):active, label.row:active { background: var(--fill-2); 
 .stepper button + button { border-left: 0.5px solid var(--sep); }
 .stepper button:active { background: var(--fill); }
 .swatch-dot { width: 22px; height: 22px; flex: none; border-radius: 50%; background: var(--k); }
+.daypick { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 16px 16px 12px; }
+.daypick .day {
+  width: 100%;
+  max-width: 44px;
+  aspect-ratio: 1;
+  justify-self: center;
+  border-radius: 50%;
+  background: var(--fill);
+  font-size: 15px;
+  font-weight: 600;
+  transition: background-color 0.15s, color 0.15s, transform 0.15s;
+}
+.daypick .day.on { background: var(--blue); color: #fff; }
+.daypick .day:active { transform: scale(0.9); }
+.presets { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 16px; }
+.presets button { padding: 7px 12px; border-radius: 16px; background: var(--fill); color: var(--blue); font-size: 14px; font-weight: 500; }
+.sched { font-size: 13px; font-weight: 400; color: var(--label-2); }
 .swatches { display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px; padding: 18px 20px; }
 .swatch {
   aspect-ratio: 1;
@@ -584,6 +604,34 @@ button.row:not(:disabled):active, label.row:active { background: var(--fill-2); 
 .steps code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; padding: 1px 5px; border-radius: 5px; background: var(--fill); }
 .entry-moment { margin-bottom: 4px; font-size: 16px; font-weight: 600; }
 .glass-btn:disabled { opacity: 0.5; }
+
+/* ---------- reorder (Habits → Edit) ---------- */
+.grip {
+  width: 44px;
+  height: 44px;
+  margin: -8px -14px -8px 0;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--label-3);
+  cursor: grab;
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+.grip svg { width: 22px; height: 22px; }
+.reorder-row.dragging {
+  position: fixed;
+  z-index: 40;
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.08);
+  transform: scale(1.03);
+  pointer-events: none;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.list > .row.dragging::before, .list > .row.dragging + .row::before { display: none; }
+.row.placeholder { background: var(--fill-2); }
+body.reordering, body.reordering * { cursor: grabbing !important; -webkit-user-select: none; user-select: none; }
 
 /* ---------- tab bar ---------- */
 .tabbar {

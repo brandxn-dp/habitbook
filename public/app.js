@@ -56,6 +56,7 @@ const I = {
   x: '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   chev: '<svg class="chev" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 1.5L6.5 7l-5 5.5"/></svg>',
+  grip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 12h16M4 16h16"/></svg>',
   person: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8.5" r="4"/><path d="M4 20.5c.9-4.2 4.1-6.5 8-6.5s7.1 2.3 8 6.5z"/></svg>',
   heart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5s-8-4.6-8-10.4C4 7.3 6.2 5 8.9 5c1.4 0 2.5.6 3.1 1.6C12.6 5.6 13.7 5 15.1 5 17.8 5 20 7.3 20 10.1c0 5.8-8 10.4-8 10.4z"/></svg>',
   face: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 19.5c-.5-6.5 5-10.5 12-10.5 6.5 0 11.5 3 12 9"/><path d="M9.5 20.5c9-2 20-2.4 30-.5 2.5.5 2.5 2.4 0 2.6"/><path d="M13.5 22v7.5c0 7 4.8 12 10.5 12s10.5-5 10.5-12V22"/><circle cx="19.5" cy="27" r="1.3" fill="currentColor"/><circle cx="28.5" cy="27" r="1.3" fill="currentColor"/><path d="M17.5 34.5c2.3-2.2 4.4-2.4 6.5-1 2.1-1.4 4.2-1.2 6.5 1"/><path d="M24 29v2.5"/></svg>',
@@ -385,10 +386,27 @@ function isSuccess(h, k) {
   return h.avoid ? hasData(state.days[k]) && !done : done;
 }
 
+// Habits can repeat on chosen weekdays only (h.days, 0 = Sunday); no list means every day.
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const weekOrder = () => (S().weekStart === 'sun' ? [0, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 0]);
+const isScheduled = (h, k) => !Array.isArray(h.days) || !h.days.length || h.days.includes(parseDay(k).getDay());
+// A habit counts on a day when it's scheduled then, or was ticked off anyway.
+const dueOn = (h, k) => isScheduled(h, k) || isDone(k, h.id);
+
+function scheduleText(h) {
+  const d = Array.isArray(h.days) ? [...new Set(h.days)].sort() : [];
+  if (!d.length || d.length === 7) return '';
+  const key = d.join('');
+  if (key === '12345') return 'Weekdays';
+  if (key === '06') return 'Weekends';
+  return weekOrder().filter((x) => d.includes(x)).map((x) => WEEKDAY_SHORT[x]).join(', ');
+}
+
 // Per colour: scored colours count wins, sleep-factor colours just count what was logged.
 function progress(k, m) {
   return state.categories.map((c) => {
-    const hs = habitsIn(m, c);
+    const hs = habitsIn(m, c).filter((h) => dueOn(h, k));
     const ok = c.sleepFactor ? hs.filter((h) => isDone(k, h.id)).length : hs.filter((h) => isSuccess(h, k)).length;
     return { c, ok, n: hs.length };
   }).filter((p) => p.n);
@@ -396,16 +414,18 @@ function progress(k, m) {
 
 function dayRatio(k) {
   const m = getMonth(monthKeyOf(k));
-  const hs = m.habits.filter((h) => !catOf(h).sleepFactor);
+  const hs = m.habits.filter((h) => !catOf(h).sleepFactor && dueOn(h, k));
   if (!hs.length || !hasData(state.days[k])) return 0;
   return hs.filter((h) => isSuccess(h, k)).length / hs.length;
 }
 
-function streak(id, k) {
-  let cur = isDone(k, id) ? k : addDays(k, -1);
+// Days a habit isn't scheduled neither extend nor break its streak.
+function streak(h, k) {
+  let cur = isDone(k, h.id) || !isScheduled(h, k) ? k : addDays(k, -1);
   let n = 0;
-  while (isDone(cur, id) && n < 1000) {
-    n++;
+  for (let i = 0; i < 1000; i++) {
+    if (isDone(cur, h.id)) n++;
+    else if (isScheduled(h, cur)) break;
     cur = addDays(cur, -1);
   }
   return n;
@@ -413,7 +433,7 @@ function streak(id, k) {
 
 /* ================= ui state ================= */
 
-const ui = { tab: 'today', day: todayKey(), month: monthKeyOf(todayKey()), seg: 'spread' };
+const ui = { tab: 'today', day: todayKey(), month: monthKeyOf(todayKey()), seg: 'spread', editHabits: false, allMoments: false };
 let lastToday = todayKey();
 const view = document.getElementById('view');
 
@@ -484,12 +504,15 @@ function weekStrip(k) {
 function habitRow(h, k, locked) {
   const c = catOf(h);
   const on = isDone(k, h.id);
-  let sub = '';
-  if (h.avoid) sub = on ? '<span class="slip">Slipped</span>' : 'Avoid';
+  const bits = [];
+  const sched = scheduleText(h);
+  if (sched) bits.push(sched);
+  if (h.avoid) bits.push(on ? '<span class="slip">Slipped</span>' : 'Avoid');
   else if (!c.sleepFactor) {
-    const s = streak(h.id, k);
-    if (s >= 2) sub = `<span class="streak">${s}-day streak</span>`;
+    const s = streak(h, k);
+    if (s >= 2) bits.push(`<span class="streak">${s}-day streak</span>`);
   }
+  const sub = bits.join(' · ');
   return `<button class="row habit-row ${tone(c)}" data-action="toggle" data-day="${k}" data-habit="${h.id}" aria-pressed="${on}" ${locked ? 'disabled' : ''}>
     <span class="row-main"><span class="row-title">${esc(h.name)}</span>${sub ? `<span class="row-sub">${sub}</span>` : ''}</span>
     <span class="check ${on ? 'on' : ''}">${I.x}</span>
@@ -537,12 +560,16 @@ function viewToday() {
     </div></div>` : '';
 
   const habitSections = state.categories.map((c) => {
-    const hs = habitsIn(m, c);
+    const hs = habitsIn(m, c).filter((h) => dueOn(h, k));
     if (!hs.length) return '';
     return `<div class="section ${tone(c)}">${catHeader(c)}
       <div class="list">${hs.map((h) => habitRow(h, k, future)).join('')}</div>
     </div>`;
   }).join('');
+  const offToday = m.habits.filter((h) => !dueOn(h, k));
+  const offNote = offToday.length
+    ? `<p class="about">Not scheduled on ${WEEKDAY_LONG[date.getDay()]}s: ${offToday.map((h) => esc(h.name)).join(', ')}</p>`
+    : '';
 
   const sleepH = d.sleep != null ? Math.floor(d.sleep / 60) : '';
   const sleepM = d.sleep != null ? pad(d.sleep % 60) : '';
@@ -562,6 +589,7 @@ function viewToday() {
       <div class="section-footer">${future ? 'You can fill this in once the day has happened.' : 'Something you did, liked or didn’t like. You can also add it when you write in your journal.'}</div>
     </div>` +
     habitSections +
+    offNote +
     `<div class="section"><div class="section-header">Body &amp; sleep</div><div class="list">
       <label class="row"><span class="row-main"><span class="row-title">Weight</span></span>
         <input class="field" ${dayAttrs} data-field="weight" inputmode="decimal" placeholder="—" value="${fmtWeight(d.weight)}" aria-label="Weight in ${unitW()}"><span class="unit">${unitW()}</span></label>
@@ -638,7 +666,9 @@ function trackerTable(mk) {
       cells += '<td class="gap"></td>';
       for (const h of g) {
         const on = !!(d.done && d.done[h.id]);
-        cells += `<td><button class="cell ${tone(catOf(h))}" data-action="toggle" data-day="${k}" data-habit="${h.id}" aria-label="${esc(h.name)}, day ${i + 1}" aria-pressed="${on}" ${future ? 'disabled' : ''}>${on ? I.x : ''}</button></td>`;
+        // Shade days the habit isn't scheduled, like crossing out squares in the notebook.
+        const off = !isScheduled(h, k);
+        cells += `<td${off ? ' class="off"' : ''}><button class="cell ${tone(catOf(h))}" data-action="toggle" data-day="${k}" data-habit="${h.id}" aria-label="${esc(h.name)}, day ${i + 1}${off ? ', not scheduled' : ''}" aria-pressed="${on}" ${future ? 'disabled' : ''}>${on ? I.x : ''}</button></td>`;
       }
     }
     cells += '<td class="gap"></td>';
@@ -653,15 +683,23 @@ function trackerTable(mk) {
 function spread(mk) {
   const m = getMonth(mk);
   const tk = todayKey();
-  const moments = dayKeysOf(mk).map((k, i) => {
-    const d = getDay(k);
-    const txt = d.moment && d.moment.trim();
-    const cls = [k === tk && 'today', k > tk && 'future'].filter(Boolean).join(' ');
+  // Only days with a moment are listed; empty days so far can be shown as compact rows.
+  const days = dayKeysOf(mk).filter((k) => k <= tk).map((k) => ({ k, txt: (getDay(k).moment || '').trim() }));
+  const filled = days.filter((d) => d.txt).length;
+  const emptyCount = days.length - filled;
+  const shown = ui.allMoments ? days : days.filter((d) => d.txt);
+  const momentRows = shown.map(({ k, txt }) => {
     const wd = parseDay(k).toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2);
-    return `<button class="row ${cls}" data-action="openDay" data-day="${k}">
-      <span class="num">${i + 1}</span><span class="txt ${txt ? '' : 'empty'}">${txt ? esc(txt) : '—'}</span><span class="wd">${wd}</span>
+    return `<button class="row ${k === tk ? 'today' : ''} ${txt ? '' : 'empty-day'}" data-action="openDay" data-day="${k}">
+      <span class="num">${parseDay(k).getDate()}</span><span class="txt ${txt ? '' : 'blank'}">${txt ? esc(txt) : 'Add a moment'}</span><span class="wd">${wd}</span>
     </button>`;
   }).join('');
+  const noMoments = shown.length ? '' : `<div class="row"><span class="row-main"><span class="row-sub">${days.length
+    ? 'No memorable moments yet. Add one from Today, or when you write in your journal.'
+    : `${monthOnly(mk)} hasn’t started yet.`}</span></span></div>`;
+  const moreRow = emptyCount ? `<button class="row blue more-row" data-action="toggleMoments">${ui.allMoments
+    ? 'Hide Empty Days'
+    : `Show ${emptyCount} Empty Day${emptyCount === 1 ? '' : 's'}`}</button>` : '';
 
   return (S().showMotto ? mottoCard(m, mk, true) : '') +
     `<div class="section"><div class="section-header">Habit tracker</div>
@@ -672,7 +710,8 @@ function spread(mk) {
       </div>
       <div class="section-footer">Tap a square to tick it off. Tap a day number to open that day.</div>
     </div>` +
-    `<div class="section"><div class="section-header">Memorable moments</div><div class="list moments">${moments}</div></div>` +
+    `<div class="section"><div class="section-header">Memorable moments${filled ? ` · ${filled}` : ''}</div>
+      <div class="list moments">${momentRows}${noMoments}${moreRow}</div></div>` +
     goalsSection(mk, m) +
     `<div class="section"><div class="section-header">Next month</div>
       <div class="list"><textarea class="textarea short" data-scope="month" data-month="${mk}" data-field="nextMonth"
@@ -716,11 +755,15 @@ function insights(mk) {
     const hs = habitsIn(m, c);
     if (!hs.length) return '';
     const rows = hs.map((h) => {
-      const done = tracked.filter((k) => isDone(k, h.id)).length;
-      const good = h.avoid ? T - done : done;
-      const label = h.avoid ? `avoided ${good} of ${T}` : `${done} of ${T}`;
-      return `<div class="row stat"><div class="stat-top"><span class="row-title">${esc(h.name)}</span><span class="detail">${label}</span></div>
-        <div class="bar"><i style="width:${((good / T) * 100).toFixed(1)}%"></i></div></div>`;
+      // Only scheduled days count, so a Mon/Wed/Fri habit is scored out of those days.
+      const due = tracked.filter((k) => dueOn(h, k));
+      const D = due.length;
+      const done = due.filter((k) => isDone(k, h.id)).length;
+      const good = h.avoid ? D - done : done;
+      const label = h.avoid ? `avoided ${good} of ${D}` : `${done} of ${D}`;
+      const sched = scheduleText(h);
+      return `<div class="row stat"><div class="stat-top"><span class="row-title">${esc(h.name)}${sched ? ` <small class="sched">${sched}</small>` : ''}</span><span class="detail">${label}</span></div>
+        <div class="bar"><i style="width:${D ? ((good / D) * 100).toFixed(1) : 0}%"></i></div></div>`;
     }).join('');
     return `<div class="section ${tone(c)}">${catHeader(c)}<div class="list">${rows}</div></div>`;
   }).join('');
@@ -733,7 +776,7 @@ function insights(mk) {
       const without = [];
       for (const k of tracked) {
         const s = state.days[k].sleep;
-        if (s == null) continue;
+        if (s == null || !dueOn(h, k)) continue;
         (isDone(k, h.id) ? withS : without).push(s);
       }
       if (!withS.length || !without.length) {
@@ -828,21 +871,32 @@ function viewJournal() {
 function viewHabits() {
   const mk = ui.month;
   const m = getMonth(mk);
+  const editing = ui.editHabits;
   const sections = state.categories.map((c) => {
     const hs = habitsIn(m, c);
-    return `<div class="section ${tone(c)}">${catHeader(c)}
-      <div class="list">
-        ${hs.map((h) => `<button class="row" data-action="editHabit" data-id="${h.id}">
-          <span class="row-main"><span class="row-title">${esc(h.name)}</span></span>
-          ${h.avoid ? '<span class="tag">Avoid</span>' : ''}${I.chev}</button>`).join('')}
-        <button class="row blue" data-action="addHabit" data-kind="${c.id}">Add Habit</button>
+    // In Edit mode rows get a drag handle; each group's "Add Habit" row doubles as the drop spot at its end.
+    const rows = hs.map((h) => {
+      const sched = scheduleText(h);
+      const main = `<span class="row-main"><span class="row-title">${esc(h.name)}</span>${sched ? `<span class="row-sub">${sched}</span>` : ''}</span>
+          ${h.avoid ? '<span class="tag">Avoid</span>' : ''}`;
+      return editing
+        ? `<div class="row reorder-row" data-id="${h.id}">${main}
+          <span class="grip" role="button" aria-label="Drag to move ${esc(h.name)}">${I.grip}</span></div>`
+        : `<button class="row" data-action="editHabit" data-id="${h.id}">${main}${I.chev}</button>`;
+    }).join('');
+    return `<div class="section ${tone(c)}" data-kind="${c.id}">${catHeader(c)}
+      <div class="list">${rows}
+        <button class="row blue add-row" data-action="addHabit" data-kind="${c.id}">Add Habit</button>
       </div>
-      ${c.meaning ? `<div class="section-footer">${esc(c.meaning)}</div>` : ''}
+      ${c.meaning && !editing ? `<div class="section-footer">${esc(c.meaning)}</div>` : ''}
     </div>`;
   }).join('');
 
-  return navbar('Habits') +
-    '<h1 class="large-title">Habits</h1><p class="large-sub">Set up your spread for the month</p>' +
+  const editBtn = `<button class="glass-btn pill ${editing ? 'primary' : ''}" data-action="editHabits">${editing ? 'Done' : 'Edit'}</button>`;
+  return navbar('Habits', '', editBtn) +
+    `<h1 class="large-title">Habits</h1><p class="large-sub">${editing
+      ? 'Drag ≡ to reorder, or drop a habit into another colour'
+      : 'Set up your spread for the month'}</p>` +
     `<div class="month-switch">${glassBtn('prevMonth', I.chevL, 'Previous month')}<span class="label">${esc(monthName(mk))}</span>${glassBtn('nextMonth', I.chevR, 'Next month')}</div>` +
     `<div class="section"><div class="list">
       <label class="row"><span class="row-main"><span class="row-title">Monthly motto</span></span>
@@ -1072,6 +1126,13 @@ function autoTickJournal(k) {
 function habitSheet(mk, id, kind) {
   const cur = id ? getMonth(mk).habits.find((h) => h.id === id) : null;
   let sel = cur ? catOf(cur).id : kind || state.categories[0].id;
+  let days = cur && Array.isArray(cur.days) && cur.days.length ? [...cur.days] : [0, 1, 2, 3, 4, 5, 6];
+  const scheduleFooter = () => {
+    const t = scheduleText({ days });
+    return t
+      ? `${t} only. On other days it’s hidden from Today, shaded in the tracker, and never counts against you or breaks a streak.`
+      : 'Every day.';
+  };
   const body = `
     <div class="section"><div class="list"><label class="row">
       <input class="text" data-k="name" maxlength="24" placeholder="Habit name" value="${esc(cur ? cur.name : '')}">
@@ -1084,6 +1145,14 @@ function habitSheet(mk, id, kind) {
     </div></div>
     <div class="section"><div class="list">${sheetSwitch('Avoid this habit', 'avoid', cur && cur.avoid)}</div>
       <div class="section-footer">Not every habit is a good habit. Turn this on for things you’re trying not to do, like socials on waking — a ✕ then means you slipped.</div></div>
+    <div class="section"><div class="section-header">Repeat</div><div class="list">
+      <div class="daypick">${weekOrder().map((d) => `<button class="day ${days.includes(d) ? 'on' : ''}" data-s="day" data-day="${d}" aria-pressed="${days.includes(d)}" aria-label="${WEEKDAY_LONG[d]}">${WEEKDAY_SHORT[d][0]}</button>`).join('')}</div>
+      <div class="presets">
+        <button data-s="preset" data-days="0123456">Every day</button>
+        <button data-s="preset" data-days="12345">Weekdays</button>
+        <button data-s="preset" data-days="06">Weekends</button>
+      </div>
+    </div><div class="section-footer" data-sched>${scheduleFooter()}</div></div>
     ${cur ? `<div class="section"><div class="list">
         <button class="row blue" data-s="up">Move Up</button>
         <button class="row blue" data-s="down">Move Down</button>
@@ -1103,10 +1172,13 @@ function habitSheet(mk, id, kind) {
         return false;
       }
       const avoid = sh.querySelector('[data-k=avoid]').checked;
+      const schedule = days.length === 7 ? {} : { days: [...days].sort() };
       const m = ensureMonth(mk);
       const h = id && m.habits.find((x) => x.id === id);
-      if (h) Object.assign(h, { name, kind: sel, avoid });
-      else m.habits.push({ id: uid(), name, kind: sel, avoid });
+      if (h) {
+        delete h.days;
+        Object.assign(h, { name, kind: sel, avoid }, schedule);
+      } else m.habits.push({ id: uid(), name, kind: sel, avoid, ...schedule });
       touchMonth(m);
       save();
       render(true);
@@ -1120,6 +1192,20 @@ function habitSheet(mk, id, kind) {
         if (act === 'kind') {
           sel = b.dataset.kind;
           sh.querySelectorAll('[data-s=kind]').forEach((r) => { r.querySelector('.tick').hidden = r.dataset.kind !== sel; });
+        } else if (act === 'day' || act === 'preset') {
+          if (act === 'preset') days = b.dataset.days.split('').map(Number);
+          else {
+            const d = Number(b.dataset.day);
+            if (!days.includes(d)) days = [...days, d];
+            else if (days.length === 1) return toast('Pick at least one day');
+            else days = days.filter((x) => x !== d);
+          }
+          sh.querySelectorAll('[data-s=day]').forEach((x) => {
+            const on = days.includes(Number(x.dataset.day));
+            x.classList.toggle('on', on);
+            x.setAttribute('aria-pressed', String(on));
+          });
+          sh.querySelector('[data-sched]').textContent = scheduleFooter();
         } else if (act === 'up' || act === 'down') {
           moveHabit(mk, id, act === 'up' ? -1 : 1);
         } else if (act === 'delete') {
@@ -1537,6 +1623,7 @@ document.addEventListener('click', (e) => {
     case 'tab':
       if (ui.tab === el.dataset.tab) return window.scrollTo({ top: 0, behavior: 'smooth' });
       ui.tab = el.dataset.tab;
+      ui.editHabits = false;
       render();
       window.scrollTo(0, 0);
       if (ui.tab === 'settings') loadServerInfo();
@@ -1631,6 +1718,14 @@ document.addEventListener('click', (e) => {
     case 'erase':
       eraseAll();
       break;
+    case 'editHabits':
+      ui.editHabits = !ui.editHabits;
+      render(true);
+      break;
+    case 'toggleMoments':
+      ui.allMoments = !ui.allMoments;
+      render(true);
+      break;
   }
 });
 
@@ -1693,6 +1788,92 @@ document.addEventListener('focusout', () => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.matches('input.text, input.field, .bubble-input')) e.target.blur();
 });
+
+/* ---------- drag to reorder habits (Habits → Edit) ---------- */
+
+// The dragged row floats (position: fixed) under the finger while a placeholder marks
+// where it will land. Dropping into another colour's list moves the habit to that colour.
+let drag = null;
+
+function placeDrop() {
+  const targets = [...view.querySelectorAll('.reorder-row:not(.dragging), .add-row')];
+  const before = targets.find((t) => {
+    const r = t.getBoundingClientRect();
+    return drag.y < r.top + r.height / 2;
+  }) || targets[targets.length - 1];
+  if (!before) return;
+  let prev = before.previousElementSibling;
+  if (prev === drag.row) prev = prev.previousElementSibling;
+  if (prev !== drag.ph) before.before(drag.ph);
+}
+
+function dragScroll() {
+  if (!drag) return;
+  const top = 110;
+  const bottom = window.innerHeight - 120;
+  const dy = drag.y < top ? -Math.min(18, Math.ceil((top - drag.y) / 5))
+    : drag.y > bottom ? Math.min(18, Math.ceil((drag.y - bottom) / 5)) : 0;
+  if (dy) {
+    window.scrollBy(0, dy);
+    placeDrop();
+  }
+  requestAnimationFrame(dragScroll);
+}
+
+document.addEventListener('pointerdown', (e) => {
+  const grip = e.target.closest('.grip');
+  if (!grip || drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  e.preventDefault();
+  const row = grip.closest('.reorder-row');
+  const r = row.getBoundingClientRect();
+  const ph = document.createElement('div');
+  ph.className = 'row placeholder';
+  ph.style.height = `${r.height}px`;
+  row.before(ph);
+  Object.assign(row.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px` });
+  row.classList.add('dragging');
+  document.body.classList.add('reordering');
+  drag = { row, ph, startY: e.clientY, top: r.top, y: e.clientY };
+  if (navigator.vibrate) navigator.vibrate(8);
+  requestAnimationFrame(dragScroll);
+});
+
+document.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  drag.y = e.clientY;
+  drag.row.style.top = `${drag.top + e.clientY - drag.startY}px`;
+  placeDrop();
+});
+
+function endDrag() {
+  if (!drag) return;
+  const { row, ph } = drag;
+  drag = null;
+  document.body.classList.remove('reordering');
+  ph.replaceWith(row);
+  row.classList.remove('dragging');
+  row.removeAttribute('style');
+
+  // Rebuild the month's habit order (and colours) from the rows as they now sit on screen.
+  const m = ensureMonth(ui.month);
+  const before = JSON.stringify(m.habits.map((h) => [h.id, h.kind]));
+  const byId = new Map(m.habits.map((h) => [h.id, h]));
+  const next = [];
+  view.querySelectorAll('.reorder-row').forEach((el) => {
+    const h = byId.get(el.dataset.id);
+    if (!h) return;
+    byId.delete(h.id);
+    next.push({ ...h, kind: el.closest('[data-kind]').dataset.kind });
+  });
+  m.habits = [...next, ...byId.values()];
+  if (JSON.stringify(m.habits.map((h) => [h.id, h.kind])) !== before) {
+    touchMonth(m);
+    save();
+  }
+  render(true);
+}
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', endDrag);
 
 function onScroll() {
   const nb = document.querySelector('.navbar');
