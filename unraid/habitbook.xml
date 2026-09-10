@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>habitbook</Name>
+  <Repository>ghcr.io/brandxn-dp/habitbook:latest</Repository>
+  <Registry>https://github.com/brandxn-dp/habitbook/pkgs/container/habitbook</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/brandxn-dp/habitbook/issues</Support>
+  <Project>https://github.com/brandxn-dp/habitbook</Project>
+  <Overview>Habitbook is an iOS-style habit tracker PWA: a monthly spread with memorable moments, colour-coded habits, weight, a sleep chart and a gratitude journal. Data is stored in each browser, so the container needs no volumes.</Overview>
+  <Category>Productivity: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:80]/</WebUI>
+  <Icon>https://raw.githubusercontent.com/brandxn-dp/habitbook/main/public/icons/icon-512.png</Icon>
+  <ExtraParams>--restart unless-stopped</ExtraParams>
+  <Config Name="Web UI Port" Target="80" Default="8090" Mode="tcp" Description="Host port to open Habitbook on." Type="Port" Display="always" Required="true" Mask="false">8090</Config>
+</Container>

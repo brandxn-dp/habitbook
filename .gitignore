@@ -1,0 +1,6 @@
+# Source video is large and not ours to redistribute
+*.mp4
+*.mov
+
+.DS_Store
+Thumbs.db
