@@ -258,6 +258,8 @@ button.row:not(:disabled):active, label.row:active { background: var(--fill-2); 
   font-variant-numeric: tabular-nums;
 }
 .field.sm { width: 48px; }
+.field.time { width: auto; min-width: 108px; }
+.field.time::-webkit-date-and-time-value { text-align: right; }
 .field:focus { box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 55%, transparent); }
 .textarea {
   display: block;

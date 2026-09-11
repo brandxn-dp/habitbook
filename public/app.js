@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS = {
   weekStart: 'mon',
   dateFormat: 'dmy',
   sleepGoal: 8,
+  sleepInput: 'duration',
   morningReview: true,
   showMotto: true,
   autoTickJournal: true,
@@ -103,6 +104,19 @@ const fmtSleep = (min) => {
 };
 const fmtDelta = (min) => `${min >= 0 ? '+' : '−'}${fmtSleep(Math.abs(min)).replace(/^0h /, '')}`;
 const fmtHours = (h) => `${Math.floor(h)}h${h % 1 ? ' 30m' : ''}`;
+
+// Minutes from bedtime to wake-up ("HH:MM" each), crossing midnight when needed.
+function sleepFromTimes(bed, wake) {
+  const toMin = (s) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(s || '');
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const b = toMin(bed);
+  const w = toMin(wake);
+  if (b == null || w == null) return null;
+  return (w - b + 1440) % 1440 || null;
+}
+const sleepTotalText = (mins) => (mins == null ? '—' : `${fmtSleep(mins)}${mins > 14 * 60 ? ' · check AM/PM' : ''}`);
 const fmtTime = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase();
 function relTime(t) {
   const s = Math.round((now() - t) / 1000);
@@ -575,6 +589,26 @@ function viewToday() {
   const sleepM = d.sleep != null ? pad(d.sleep % 60) : '';
   const dayAttrs = `data-scope="day" data-day="${k}"`;
 
+  // Sleep can be typed as a duration, or worked out from bedtime and wake-up.
+  const byTimes = S().sleepInput === 'times';
+  const sleepRows = `<div class="row"><span class="row-main"><span class="row-title">Sleep</span><span class="row-sub">That night · goal ${fmtHours(S().sleepGoal)}</span></span>
+      <div class="seg inline">
+        <button class="${byTimes ? '' : 'on'}" data-action="set" data-key="sleepInput" data-value="duration">Hours</button>
+        <button class="${byTimes ? 'on' : ''}" data-action="set" data-key="sleepInput" data-value="times">Bed &amp; wake</button>
+      </div></div>` +
+    (byTimes
+      ? `<label class="row"><span class="row-main"><span class="row-title">Went to bed</span></span>
+          <input class="field time" type="time" ${dayAttrs} data-field="bed" value="${esc(d.bed || '')}" aria-label="Bedtime"></label>
+        <label class="row"><span class="row-main"><span class="row-title">Woke up</span></span>
+          <input class="field time" type="time" ${dayAttrs} data-field="wake" value="${esc(d.wake || '')}" aria-label="Wake-up time"></label>
+        <div class="row"><span class="row-main"><span class="row-title">Total</span></span><span class="detail" data-sleep-total>${sleepTotalText(d.sleep)}</span></div>`
+      : `<div class="row" data-sleep><span class="row-main"><span class="row-title">Duration</span></span>
+          <input class="field sm" ${dayAttrs} data-field="sleepH" inputmode="numeric" maxlength="2" placeholder="–" value="${sleepH}" aria-label="Sleep hours"><span class="unit">h</span>
+          <input class="field sm" ${dayAttrs} data-field="sleepM" inputmode="numeric" maxlength="2" placeholder="–" value="${sleepM}" aria-label="Sleep minutes"><span class="unit">m</span></div>`);
+  const sleepFooter = byTimes
+    ? 'Weigh in each morning. Bedtime is the evening of this day and wake-up is the next morning — the total is worked out for you.'
+    : 'Weigh in each morning. Sleep goes on the day it followed — log last night’s from your watch on yesterday’s page.';
+
   return navbar(date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }), left, right) +
     `<h1 class="large-title">${esc(title)}</h1><p class="large-sub">${esc(sub)}</p>` +
     weekStrip(k) +
@@ -593,12 +627,10 @@ function viewToday() {
     `<div class="section"><div class="section-header">Body &amp; sleep</div><div class="list">
       <label class="row"><span class="row-main"><span class="row-title">Weight</span></span>
         <input class="field" ${dayAttrs} data-field="weight" inputmode="decimal" placeholder="—" value="${fmtWeight(d.weight)}" aria-label="Weight in ${unitW()}"><span class="unit">${unitW()}</span></label>
-      <div class="row" data-sleep><span class="row-main"><span class="row-title">Sleep</span><span class="row-sub">That night · goal ${fmtHours(S().sleepGoal)}</span></span>
-        <input class="field sm" ${dayAttrs} data-field="sleepH" inputmode="numeric" maxlength="2" placeholder="–" value="${sleepH}" aria-label="Sleep hours"><span class="unit">h</span>
-        <input class="field sm" ${dayAttrs} data-field="sleepM" inputmode="numeric" maxlength="2" placeholder="–" value="${sleepM}" aria-label="Sleep minutes"><span class="unit">m</span></div>
+      ${sleepRows}
       <label class="row"><span class="row-main"><span class="row-title">Sleep score</span></span>
         <input class="field" ${dayAttrs} data-field="score" inputmode="numeric" maxlength="3" placeholder="—" value="${d.score ?? ''}" aria-label="Sleep score"></label>
-    </div><div class="section-footer">Weigh in each morning. Sleep goes on the day it followed — log last night’s from your watch on yesterday’s page.</div></div>`;
+    </div><div class="section-footer">${sleepFooter}</div></div>`;
 }
 
 /* ================= Month ================= */
@@ -984,6 +1016,7 @@ function viewSettings() {
       ${segRow('Dates', 'dateFormat', [['dmy', 'DD.MM'], ['mdy', 'MM.DD'], ['ymd', 'ISO']])}
     </div><div class="section-footer">Weight is stored in kilograms and converted for display, so you can switch at any time.</div></div>` +
     `<div class="section"><div class="section-header">Sleep</div><div class="list">
+      ${segRow('Log sleep as', 'sleepInput', [['duration', 'Hours'], ['times', 'Bed &amp; wake']])}
       <div class="row"><span class="row-main"><span class="row-title">Sleep goal</span></span>
         <span class="detail">${fmtHours(S().sleepGoal)}</span>
         <span class="stepper"><button data-action="sleepGoal" data-delta="-0.5" aria-label="Less sleep">−</button><button data-action="sleepGoal" data-delta="0.5" aria-label="More sleep">+</button></span></div>
@@ -1755,6 +1788,24 @@ document.addEventListener('input', (e) => {
       if (h === '' && m === '') delete d.sleep;
       else d.sleep = Math.min(24, parseInt(h, 10) || 0) * 60 + Math.min(59, parseInt(m, 10) || 0);
       stampDay(d, 'sleep');
+      // A typed duration replaces any bed/wake times so the two never disagree.
+      for (const x of ['bed', 'wake']) {
+        if (d[x] !== undefined) {
+          delete d[x];
+          stampDay(d, x);
+        }
+      }
+    } else if (f === 'bed' || f === 'wake') {
+      if (t.value) d[f] = t.value;
+      else delete d[f];
+      stampDay(d, f);
+      const mins = sleepFromTimes(d.bed, d.wake);
+      if (mins != null) {
+        d.sleep = mins;
+        stampDay(d, 'sleep');
+      }
+      const total = document.querySelector('[data-sleep-total]');
+      if (total) total.textContent = sleepTotalText(mins ?? d.sleep);
     }
   } else if (t.dataset.scope === 'month') {
     const m = ensureMonth(t.dataset.month);

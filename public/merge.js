@@ -19,7 +19,7 @@
   const stamp = (o, k) => (isObj(o) && isObj(o._ts) && o._ts[k]) || 0;
 
   function dayFields(d) {
-    const out = new Set(['moment', 'weight', 'sleep', 'score']);
+    const out = new Set(['moment', 'weight', 'sleep', 'score', 'bed', 'wake']);
     if (isObj(d.done)) for (const id of Object.keys(d.done)) out.add(`done.${id}`);
     if (isObj(d._ts)) for (const f of Object.keys(d._ts)) out.add(f);
     return out;

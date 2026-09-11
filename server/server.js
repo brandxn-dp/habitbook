@@ -224,6 +224,14 @@ async function applyHealth(user, b) {
   const mins = sleepMinutes(b);
   if (mins != null && mins > 0 && mins < 24 * 60) {
     set(sleepDate, 'sleep', Math.round(mins));
+    // An imported total replaces any bed/wake times typed in for that night.
+    const night = st.days[sleepDate];
+    for (const f of ['bed', 'wake']) {
+      if (night[f] !== undefined) {
+        delete night[f];
+        night._ts = { ...night._ts, [f]: now };
+      }
+    }
     applied.sleep = { date: sleepDate, minutes: Math.round(mins) };
   }
   const score = toNumber(b.sleepScore ?? b.score);
